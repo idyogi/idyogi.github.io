@@ -1,0 +1,396 @@
+<!doctype html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, user-scalable=no" />
+  <meta name="theme-color" content="#0d1120" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <title>Vector Bastion</title>
+  <link rel="manifest" href="/game/vector-bastion/manifest.webmanifest" />
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Cpolygon points='8,1 14,4.5 14,11.5 8,15 2,11.5 2,4.5' fill='%2336e2e2'/%3E%3C/svg%3E" />
+  <link rel="apple-touch-icon" href="/game/vector-bastion/icon-180.png" />
+  <style>
+    * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+    html, body { overscroll-behavior: none; }
+    body {
+      margin: 0;
+      height: 100vh;
+      height: 100dvh;
+      display: flex;
+      flex-direction: column;
+      background: #080a12;
+      color: #dde6f2;
+      font-family: ui-monospace, 'SF Mono', Menlo, monospace;
+      font-size: 13px;
+      overflow: hidden;
+      user-select: none;
+      -webkit-user-select: none;
+    }
+    #topbar, #toolbar {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      background: rgba(13, 17, 30, 0.96);
+      flex-shrink: 0;
+      z-index: 2;
+    }
+    #topbar {
+      padding: 6px 14px;
+      padding-top: max(6px, env(safe-area-inset-top));
+      padding-left: max(14px, env(safe-area-inset-left));
+      padding-right: max(14px, env(safe-area-inset-right));
+      border-bottom: 1px solid #1c2336;
+    }
+    #toolbar {
+      padding: 8px 14px;
+      padding-bottom: max(8px, env(safe-area-inset-bottom));
+      padding-left: max(14px, env(safe-area-inset-left));
+      padding-right: max(14px, env(safe-area-inset-right));
+      border-top: 1px solid #1c2336;
+    }
+    .stat { display: inline-flex; align-items: center; gap: 5px; white-space: nowrap; }
+    .stat b { color: #fff; font-size: 14px; }
+    .dot { width: 9px; height: 9px; border-radius: 2px; display: inline-block; }
+    .spacer { flex: 1; }
+    .dim { color: #5a6478; }
+    .dim b { color: #7a8499; }
+    #game { flex: 1; min-height: 0; width: 100%; display: block; cursor: crosshair; touch-action: none; }
+    button {
+      background: #182032;
+      border: 1px solid #2a3450;
+      color: #dde6f2;
+      padding: 8px 14px;
+      border-radius: 8px;
+      cursor: pointer;
+      font: inherit;
+      min-height: 38px;
+    }
+    button:active { transform: translateY(1px); }
+    button.selected { border-color: #36e2e2; color: #36e2e2; box-shadow: 0 0 12px rgba(54, 226, 226, 0.25); }
+    button.poor { opacity: 0.38; }
+    button.primary {
+      background: #36e2e2;
+      color: #06222a;
+      font-weight: 700;
+      letter-spacing: 2px;
+      padding: 12px 40px;
+      font-size: 16px;
+    }
+    .build-btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      min-height: 46px;
+      min-width: 96px;
+    }
+    .build-btn svg { width: 22px; height: 22px; flex-shrink: 0; }
+    .build-btn .bb-text { display: flex; flex-direction: column; align-items: flex-start; line-height: 1.25; }
+    .build-btn .bb-cost { color: #ffd95e; font-size: 11px; }
+    kbd {
+      padding: 1px 5px;
+      border: 1px solid #2a3450;
+      border-radius: 4px;
+      font-size: 10px;
+      color: #5a6478;
+    }
+    .hint { color: #5a6478; margin-left: auto; text-align: right; }
+    @media (pointer: coarse) {
+      .desktop-only { display: none !important; }
+      button { min-height: 46px; }
+    }
+    @media (max-width: 760px) {
+      .hide-narrow { display: none !important; }
+    }
+    /* Panel struktur terpilih */
+    #panel {
+      position: fixed;
+      right: max(12px, env(safe-area-inset-right));
+      bottom: 84px;
+      background: rgba(13, 17, 30, 0.97);
+      border: 1px solid #2a3450;
+      border-radius: 12px;
+      padding: 12px 14px;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      min-width: 210px;
+      z-index: 3;
+      box-shadow: 0 8px 30px rgba(0, 0, 0, 0.5);
+    }
+    #panel.hidden { display: none; }
+    #panel-title { font-weight: 700; font-size: 14px; }
+    #panel-stats { color: #8a93a6; font-size: 12px; line-height: 1.5; white-space: pre-line; }
+    #panel .row { display: flex; gap: 8px; }
+    #panel .row button { flex: 1; }
+    #upgrade { border-color: #36e2e2; }
+    #sellbtn { border-color: #5a3440; color: #f2a0a8; }
+    /* Layar penuh (title & game over) */
+    .screen {
+      position: fixed;
+      inset: 0;
+      background: rgba(5, 7, 12, 0.88);
+      backdrop-filter: blur(4px);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 14px;
+      z-index: 10;
+      text-align: center;
+      padding: 20px;
+    }
+    .screen.hidden { display: none; }
+    .logo { filter: drop-shadow(0 0 18px rgba(54, 226, 226, 0.5)); }
+    .screen h1 {
+      margin: 0;
+      letter-spacing: 8px;
+      font-size: clamp(22px, 5vw, 40px);
+      color: #fff;
+    }
+    #overlay h1 { color: #f2606b; }
+    .tagline { color: #8a93a6; margin: 0; letter-spacing: 2px; }
+    #diffs { display: flex; gap: 10px; flex-wrap: wrap; justify-content: center; }
+    .diff-btn { display: flex; flex-direction: column; gap: 2px; min-width: 110px; padding: 10px 14px; }
+    .diff-btn .best { font-size: 10px; color: #5a6478; }
+    .diff-btn.selected .best { color: #36e2e2; }
+    .row-btns { display: flex; gap: 12px; align-items: stretch; flex-wrap: wrap; justify-content: center; }
+    .row-btns.minor button { padding: 6px 10px; min-height: 32px; font-size: 11px; color: #8a93a6; }
+    #biomes, #kits { display: flex; gap: 8px; flex-wrap: wrap; justify-content: center; }
+    #biomes .diff-btn, #kits .diff-btn { min-width: 90px; padding: 7px 10px; font-size: 12px; }
+    #kits .diff-btn.locked { opacity: 0.55; border-style: dashed; }
+    #kits .cost { color: #c9a0e8; font-size: 10px; }
+    #prismaline { margin: 0; color: #c9a0e8; }
+    .lang-btn { padding: 4px 12px; min-height: 30px; }
+    .lang-btn.selected { border-color: #36e2e2; color: #36e2e2; }
+    .modal-h { font-size: 20px !important; letter-spacing: 5px !important; }
+    .set-row {
+      display: flex;
+      align-items: center;
+      gap: 14px;
+      background: #11161f;
+      border: 1px solid #2a3450;
+      border-radius: 8px;
+      padding: 10px 16px;
+      min-width: 280px;
+      justify-content: space-between;
+    }
+    #resetdata { border-color: #5a3440; color: #f2a0a8; }
+    #achlist { display: flex; flex-direction: column; gap: 6px; max-height: 55vh; overflow-y: auto; }
+    .ach {
+      display: flex;
+      gap: 12px;
+      align-items: center;
+      background: #11161f;
+      border: 1px solid #2a3450;
+      border-radius: 8px;
+      padding: 8px 14px;
+      min-width: 320px;
+      text-align: left;
+      opacity: 0.45;
+    }
+    .ach.unlocked { opacity: 1; border-color: #36e2e2; }
+    .ach .a-mark { font-size: 16px; color: #36e2e2; width: 18px; }
+    .ach .a-name { font-weight: 700; }
+    .ach .a-desc { color: #8a93a6; font-size: 11px; }
+    .chip {
+      position: fixed;
+      left: 50%;
+      transform: translateX(-50%);
+      background: rgba(13, 17, 30, 0.97);
+      border: 1px solid #36e2e2;
+      border-radius: 20px;
+      padding: 8px 18px;
+      z-index: 8;
+      font-size: 12px;
+      box-shadow: 0 4px 20px rgba(0, 0, 0, 0.5);
+    }
+    .chip.hidden { display: none; }
+    #hint { bottom: 92px; color: #36e2e2; }
+    #replaytag { top: 56px; color: #ffd95e; border-color: #ffd95e; }
+    #toast { top: 56px; color: #fff; }
+    #daily .best { font-size: 10px; color: #5a6478; }
+    /* Kartu draft */
+    #cards { display: flex; gap: 14px; flex-wrap: wrap; justify-content: center; }
+    .card {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      width: 180px;
+      min-height: 130px;
+      padding: 16px 14px;
+      text-align: left;
+      border-width: 2px;
+      transition: border-color 0.15s, transform 0.15s;
+    }
+    .card:hover { border-color: #36e2e2; transform: translateY(-3px); }
+    .card .c-name { font-weight: 700; font-size: 14px; color: #fff; }
+    .card .c-kind { font-size: 10px; letter-spacing: 2px; }
+    .card .c-kind.mod { color: #5fc8f5; }
+    .card .c-kind.unlock { color: #ffd95e; }
+    .card .c-kind.instant { color: #6fe08a; }
+    .card .c-desc { color: #8a93a6; font-size: 12px; line-height: 1.5; }
+    #overtext, #overbest { margin: 0; color: #8a93a6; }
+    #overbest { color: #ffd95e; }
+    /* Prompt rotasi: hanya layar sentuh portrait */
+    #rotate {
+      position: fixed;
+      inset: 0;
+      background: #080a12;
+      z-index: 99;
+      display: none;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 12px;
+      color: #8a93a6;
+      letter-spacing: 1px;
+    }
+    @media (pointer: coarse) and (orientation: portrait) {
+      #rotate { display: flex; }
+    }
+  </style>
+  <script type="module" crossorigin src="/game/vector-bastion/assets/index-C4u1Swn_.js"></script>
+</head>
+<body>
+  <div id="topbar">
+    <span class="stat"><span class="dot" style="background:#ffd95e"></span><b id="gold">0</b></span>
+    <span class="stat"><span class="dot" style="background:#36e2e2"></span><b id="basehp">250</b></span>
+    <span class="stat"><span id="wavelabel">Gel.</span> <b id="wave">0</b></span>
+    <span class="stat hide-narrow"><span id="nextlabel">Next</span> <b id="next">-</b></span>
+    <span class="spacer"></span>
+    <button id="mute" title="Suara">&#9836;</button>
+    <button id="pause">Jeda</button>
+    <button id="speed">1&times;</button>
+    <button id="menu">Menu</button>
+    <span class="dim desktop-only hide-narrow">seed <b id="seed">-</b> &middot; <b id="fps">60</b> fps</span>
+  </div>
+  <canvas id="game"></canvas>
+  <div id="toolbar">
+    <button class="build-btn" data-kind="wall">
+      <svg viewBox="0 0 24 24"><rect x="4" y="4" width="16" height="16" rx="2" fill="#97a1b5"/></svg>
+      <span class="bb-text"><span class="bb-name">Tembok</span><span class="bb-cost"></span></span>
+      <kbd class="desktop-only">1</kbd>
+    </button>
+    <button class="build-btn" data-kind="gun">
+      <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="6" fill="#f0b840"/><rect x="11" y="2" width="2" height="8" fill="#f0b840"/></svg>
+      <span class="bb-text"><span class="bb-name">Senapan</span><span class="bb-cost"></span></span>
+      <kbd class="desktop-only">2</kbd>
+    </button>
+    <button class="build-btn" data-kind="frost">
+      <svg viewBox="0 0 24 24"><polygon points="12,2 21,7 21,17 12,22 3,17 3,7" fill="#5fc8f5"/></svg>
+      <span class="bb-text"><span class="bb-name">Es</span><span class="bb-cost"></span></span>
+      <kbd class="desktop-only">3</kbd>
+    </button>
+    <button class="build-btn" data-kind="cannon">
+      <svg viewBox="0 0 24 24"><circle cx="12" cy="13" r="7" fill="#ef6a74"/><rect x="10.5" y="1" width="3" height="9" fill="#ef6a74"/></svg>
+      <span class="bb-text"><span class="bb-name">Meriam</span><span class="bb-cost"></span></span>
+      <kbd class="desktop-only">4</kbd>
+    </button>
+    <button class="build-btn locked-tower" data-kind="tesla" style="display:none">
+      <svg viewBox="0 0 24 24"><path d="M13 2 5 13h5l-2 9 9-12h-5l1-8z" fill="#b18cff"/></svg>
+      <span class="bb-text"><span class="bb-name">Tesla</span><span class="bb-cost"></span></span>
+      <kbd class="desktop-only">5</kbd>
+    </button>
+    <button class="build-btn locked-tower" data-kind="sniper" style="display:none">
+      <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="7" fill="none" stroke="#b6e85f" stroke-width="2"/><circle cx="12" cy="12" r="2" fill="#b6e85f"/><path d="M12 1v6M12 17v6M1 12h6M17 12h6" stroke="#b6e85f" stroke-width="2"/></svg>
+      <span class="bb-text"><span class="bb-name">Runduk</span><span class="bb-cost"></span></span>
+      <kbd class="desktop-only">6</kbd>
+    </button>
+    <span class="hint desktop-only hide-narrow" id="toolhint">Ketuk: bangun/pilih &middot; Seret: tembok &middot; Klik kanan: jual</span>
+  </div>
+
+  <div id="panel" class="hidden">
+    <div id="panel-title">-</div>
+    <div id="panel-stats">-</div>
+    <div class="row">
+      <button id="upgrade">Tingkatkan</button>
+      <button id="sellbtn">Jual</button>
+    </div>
+  </div>
+
+  <div id="draft" class="screen hidden">
+    <p class="tagline" id="drafttag">PILIH SATU TAKTIK</p>
+    <div id="cards"></div>
+  </div>
+
+  <div id="victory" class="screen hidden">
+    <h1 style="color:#ffd95e" id="vich1">MENANG!</h1>
+    <p id="victext"></p>
+    <p id="vicstats" class="dim"></p>
+    <div class="row-btns">
+      <button id="endless" class="primary">Lanjut (Endless)</button>
+      <button id="vicmenu">Ke Menu</button>
+    </div>
+  </div>
+
+  <div id="title" class="screen">
+    <svg class="logo" width="84" height="84" viewBox="0 0 100 100">
+      <polygon points="50,4 92,27 92,73 50,96 8,73 8,27" fill="none" stroke="#36e2e2" stroke-width="4"/>
+      <polygon points="50,28 70,39 70,61 50,72 30,61 30,39" fill="#36e2e2" opacity="0.9"/>
+    </svg>
+    <h1>VECTOR BASTION</h1>
+    <p class="tagline" id="tagline">BANGUN &middot; BERTAHAN &middot; KUASAI ARENA</p>
+    <div id="diffs"></div>
+    <div id="biomes"></div>
+    <div id="kits"></div>
+    <p class="dim" id="prismaline"></p>
+    <div class="row-btns">
+      <button id="start" class="primary">MULAI</button>
+      <button id="daily"><span id="dailylabel">Tantangan Harian</span><br /><span class="best" id="dailybest"></span></button>
+    </div>
+    <div class="row-btns minor">
+      <button id="replaylast" style="display:none">Tonton Replay</button>
+      <button id="sharereplay" style="display:none">Bagikan Kode</button>
+      <button id="importreplay">Impor Kode</button>
+      <button id="opensettings">Pengaturan</button>
+      <button id="openach"><span id="achlabel">Pencapaian</span> <b id="achcount"></b></button>
+    </div>
+    <p class="dim">v0.5 &middot; linggis.id</p>
+  </div>
+
+  <div id="overlay" class="screen hidden">
+    <h1 id="overh1">MARKAS HANCUR</h1>
+    <p id="overtext"></p>
+    <p id="overstats" class="dim"></p>
+    <p id="overbest"></p>
+    <div class="row-btns">
+      <button id="again" class="primary">Main Lagi</button>
+      <button id="tomenu">Ke Menu</button>
+    </div>
+  </div>
+
+  <div id="settings" class="screen hidden">
+    <h1 class="modal-h" id="settingsh">PENGATURAN</h1>
+    <label class="set-row"><span id="vollabel">Volume</span> <input id="vol" type="range" min="0" max="100" value="50" /></label>
+    <label class="set-row"><span id="shakelabel">Guncangan layar</span> <input id="shaketoggle" type="checkbox" checked /></label>
+    <div class="set-row"><span id="langlabel">Bahasa</span>
+      <span>
+        <button id="lang-id" class="lang-btn">ID</button>
+        <button id="lang-en" class="lang-btn">EN</button>
+      </span>
+    </div>
+    <button id="resetdata">Hapus Semua Data &amp; Rekor</button>
+    <button id="closesettings" class="primary">Tutup</button>
+  </div>
+
+  <div id="achievements" class="screen hidden">
+    <h1 class="modal-h" id="achh">PENCAPAIAN</h1>
+    <div id="achlist"></div>
+    <button id="closeach" class="primary">Tutup</button>
+  </div>
+
+  <div id="hint" class="chip hidden"></div>
+  <div id="replaytag" class="chip hidden"></div>
+  <div id="toast" class="chip hidden"></div>
+
+  <div id="rotate">
+    <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="#36e2e2" stroke-width="1.5">
+      <rect x="7" y="2" width="10" height="20" rx="2"/>
+      <path d="M2 12a10 10 0 0 1 3-7" stroke-linecap="round"/>
+    </svg>
+    <div id="rotatetext">Putar perangkat ke mode lanskap</div>
+  </div>
+
+</body>
+</html>
